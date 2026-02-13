@@ -14,11 +14,11 @@ from datetime import datetime
 # --- 1. CONFIGURACIÓN Y ESTILOS ---
 st.set_page_config(page_title="Sistema de Entregas Optimizado", page_icon="🚗", layout="centered")
 
-# --- TOKEN DE LOCATION IQ (Sustituir con el tuyo) ---
+# --- TOKEN DE LOCATION IQ ---
 TOKEN_LOCATION_IQ = "pk.687257340f32f012a326a2b48280fccf" 
 
-# --- DIRECCIÓN DEL PUNTO DE PARTIDA ---
-# MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila"
+# --- DIRECCIÓN DEL PUNTO DE PARTIDA (Comentado para edición rápida) ---
+MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila"
 
 # --- TELÉFONO PARA NOTIFICACIONES WHATSAPP ---
 MI_WHATSAPP = "528712690676" 
@@ -29,6 +29,7 @@ st.markdown("""
     .wa-button { width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-bottom:10px; }
     .call-button { width:100%; background-color:#007bff; color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-top:5px; margin-bottom:5px; font-size: 0.9em; }
     .card-container { border: 1px solid #ddd; padding: 15px; border-radius: 10px; background-color: #f9f9f9; margin-bottom: 15px; border-left: 6px solid #3498DB; }
+    .ios-instruction { background-color: #FFF3CD; color: #856404; padding: 10px; border-radius: 5px; font-size: 0.85em; margin-bottom: 10px; border: 1px solid #ffeeba; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -36,7 +37,7 @@ col1, col2 = st.columns([0.2, 0.8])
 with col1:
     st.image("https://cdn-icons-png.flaticon.com/512/3418/3418139.png", width=80)
 with col2:
-    st.title("Sistema de Entregas Optimizado")
+    st.title("Sistema de Entregas")
 
 # --- 2. FUNCIONES DE APOYO ---
 def parse_a_minutos(hora_val):
@@ -116,7 +117,6 @@ if archivo:
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown(f"🕒 **Ventana:** {row.get('hora_inicio')} - {row.get('hora_fin')}")
-                st.markdown(f"👤 **Contacto:** {row.get('contacto', 'N/A')}")
             with c2:
                 tel = str(row.get('telefono', '')).split('.')[0]
                 if tel and tel.lower() != 'nan':
@@ -128,22 +128,20 @@ if archivo:
             if st.checkbox("Confirmar Entrega", key=id_chk):
                 foto = st.camera_input("Capturar Evidencia", key=f"cam_{num}")
                 if foto:
-                    # BOTÓN DE DESCARGA PARA GUARDAR EN CELULAR
-                    st.download_button(
-                        label="💾 GUARDAR FOTO EN CELULAR",
-                        data=foto,
-                        file_name=f"Entrega_{num}_{nombre_lugar}.png",
-                        mime="image/png"
-                    )
+                    # Instrucción visual para iOS
+                    st.markdown("""
+                        <div class="ios-instruction">
+                        📸 <b>Para guardar la evidencia:</b> Mantén presionada la foto de abajo y selecciona <b>"Guardar en Fotos"</b>.
+                        </div>
+                    """, unsafe_allow_html=True)
                     
-                    st.warning("⚠️ Haz clic en el botón de arriba para guardar la evidencia en tu celular.")
+                    st.image(foto, use_column_width=True) # Muestra la foto fija para el gesto de iOS
                     
-                    if st.button("Confirmar y Enviar Aviso", key=f"confirm_{num}"):
+                    if st.button("Finalizar y Avisar ➡️", key=f"confirm_{num}"):
                         st.session_state.entregados[id_chk] = True
                         wa_msg = urllib.parse.quote(f"✅ Entregado en: {nombre_lugar}\n📍 {row.get('direccion')}")
-                        # Nota: Solo enviamos texto, la foto ya está guardada en el dispositivo
                         url_wa = f"https://wa.me/{MI_WHATSAPP}?text={wa_msg}"
-                        st.markdown(f'<a href="{url_wa}" target="_blank" class="wa-button">📲 AVISAR POR WHATSAPP</a>', unsafe_allow_html=True)
+                        st.markdown(f'<a href="{url_wa}" target="_blank" class="wa-button">📲 AVISAR WHATSAPP</a>', unsafe_allow_html=True)
                         st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
