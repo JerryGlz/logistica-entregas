@@ -12,12 +12,12 @@ import urllib.parse
 from datetime import datetime
 
 # --- 1. CONFIGURACIÓN Y ESTILOS ---
-st.set_page_config(page_title="Sistema de Entregas Optimizado", page_icon="🚗", layout="centered")
+st.set_page_config(page_title="Sistema de Entregas", page_icon="🚗", layout="centered")
 
 # --- TOKEN DE LOCATION IQ ---
 TOKEN_LOCATION_IQ = "pk.687257340f32f012a326a2b48280fccf" 
 
-# --- DIRECCIÓN DEL PUNTO DE PARTIDA (Comentado para edición rápida) ---
+# --- DIRECCIÓN DE PARTIDA (Dato de muestra según solicitado) ---
 MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila"
 
 # --- TELÉFONO PARA NOTIFICACIONES WHATSAPP ---
@@ -26,10 +26,10 @@ MI_WHATSAPP = "528712690676"
 st.markdown("""
     <style>
     .stButton>button { width: 100%; border-radius: 10px; background-color: #1E1E1E; color: white; height: 3.5em; font-weight: bold; border: none; }
-    .wa-button { width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-bottom:10px; }
+    .wa-button { width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-bottom:10px; font-size: 1.1em; }
     .call-button { width:100%; background-color:#007bff; color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-top:5px; margin-bottom:5px; font-size: 0.9em; }
     .card-container { border: 1px solid #ddd; padding: 15px; border-radius: 10px; background-color: #f9f9f9; margin-bottom: 15px; border-left: 6px solid #3498DB; }
-    .ios-instruction { background-color: #FFF3CD; color: #856404; padding: 10px; border-radius: 5px; font-size: 0.85em; margin-bottom: 10px; border: 1px solid #ffeeba; }
+    .ios-instruction { background-color: #E8F4FD; color: #1B4F72; padding: 10px; border-radius: 5px; font-size: 0.85em; margin-bottom: 10px; border: 1px solid #AED6F1; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -62,7 +62,7 @@ def buscar_coords(direccion, referencia=""):
 
 def optimizar_ruta_final(df_in):
     df_in.columns = [c.lower().strip() for c in df_in.columns]
-    l_lat, l_lon, _ = buscar_coords("Los Pensadores 3820, Residencial los Fresnos, Torreon")
+    l_lat, l_lon, _ = buscar_coords(MI_LOCAL_DIR)
     if not l_lat: l_lat, l_lon = 25.58913, -103.40713
 
     resultados = []
@@ -107,10 +107,16 @@ if archivo:
         hecho = st.session_state.entregados.get(id_chk, False)
         
         st.markdown('<div class="card-container">', unsafe_allow_html=True)
+        
+        nombre_lugar = row.get('referencia', 'Sin Referencia')
+        
         if hecho:
-            st.success(f"✅ {num}. {row.get('referencia', 'Entrega')} - COMPLETADO")
+            st.success(f"✅ {num}. {nombre_lugar} - COMPLETADO")
+            # El botón de WhatsApp se mantiene visible para poder enviar el aviso si se olvidó
+            wa_msg = urllib.parse.quote(f"✅ Entregado en: {nombre_lugar}\n📍 {row.get('direccion')}")
+            url_wa = f"https://wa.me/{MI_WHATSAPP}?text={wa_msg}"
+            st.markdown(f'<a href="{url_wa}" target="_blank" class="wa-button">📲 RE-ENVIAR AVISO WHATSAPP</a>', unsafe_allow_html=True)
         else:
-            nombre_lugar = row.get('referencia', 'Sin Referencia')
             st.markdown(f"### {num}. {nombre_lugar}")
             st.markdown(f"📍 {row.get('direccion')}")
             
@@ -126,25 +132,4 @@ if archivo:
             st.link_button(f"🗺️ Navegar a Parada {num}", f"https://www.google.com/maps/search/?api=1&query={q}")
             
             if st.checkbox("Confirmar Entrega", key=id_chk):
-                foto = st.camera_input("Capturar Evidencia", key=f"cam_{num}")
-                if foto:
-                    # Instrucción visual para iOS
-                    st.markdown("""
-                        <div class="ios-instruction">
-                        📸 <b>Para guardar la evidencia:</b> Mantén presionada la foto de abajo y selecciona <b>"Guardar en Fotos"</b>.
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.image(foto, use_column_width=True) # Muestra la foto fija para el gesto de iOS
-                    
-                    if st.button("Finalizar y Avisar ➡️", key=f"confirm_{num}"):
-                        st.session_state.entregados[id_chk] = True
-                        wa_msg = urllib.parse.quote(f"✅ Entregado en: {nombre_lugar}\n📍 {row.get('direccion')}")
-                        url_wa = f"https://wa.me/{MI_WHATSAPP}?text={wa_msg}"
-                        st.markdown(f'<a href="{url_wa}" target="_blank" class="wa-button">📲 AVISAR WHATSAPP</a>', unsafe_allow_html=True)
-                        st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-if st.sidebar.button("🗑️ Reiniciar Sesión"):
-    st.session_state.clear()
-    st.rerun()
+                foto = st.camera_input
