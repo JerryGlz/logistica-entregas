@@ -1,7 +1,7 @@
 
 # TOKEN_LOCATION_IQ = "pk.687257340f32f012a326a2b48280fccf" 
 # MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila" # <--- CONFIGURA TU LOCAL
-# MI_WHATSAPP = "528712690676" # <--- TU NÚMERO (Formato: 52 + 10 dígitos)
+# MI_WHATSAPP = "526181037087" # <--- TU NÚMERO (Formato: 52 + 10 dígitos)
 # MI_IMAGEN = st.image("https://cdn-icons-png.flaticon.com/512/3418/3418139.png", width=80)
 
 import streamlit as st
@@ -19,7 +19,7 @@ TOKEN_LOCATION_IQ = "pk.687257340f32f012a326a2b48280fccf"
 
 # --- CONFIGURACIÓN DE PUNTOS CLAVE ---
 MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila" # <--- CONFIGURA TU LOCAL
-MI_WHATSAPP = "528712690676" # <--- TU NÚMERO (Formato: 52 + 10 dígitos)
+MI_WHATSAPP = "526181037087" # <--- TU NÚMERO (Formato: 52 + 10 dígitos)
 
 st.markdown("""
     <style>
@@ -152,3 +152,4 @@ if archivo:
 if st.sidebar.button("🗑️ Reiniciar Sesión"):
     st.session_state.clear()
     st.rerun()
+
