@@ -27,7 +27,7 @@ st.markdown("""
     .wa-button { width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-top:10px; font-size: 1.1em; }
     .call-button { width:100%; background-color:#007bff; color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-top:5px; margin-bottom:5px; font-size: 0.9em; }
     .card-container { border: 1px solid #ddd; padding: 15px; border-radius: 10px; background-color: #f9f9f9; margin-bottom: 20px; border-left: 8px solid #3498DB; }
-    .cam-btn>button { background-color: #E67E22 !important; }
+    .info-label { font-weight: bold; color: #555; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -35,7 +35,7 @@ col_img, col_tit = st.columns([0.2, 0.8])
 with col_img:
     st.image("https://cdn-icons-png.flaticon.com/512/3418/3418139.png", width=70)
 with col_tit:
-    st.title("Logística de Entregas")
+    st.title("Sistema de Entregas")
 
 # --- 2. FUNCIONES DE LÓGICA ---
 def parse_a_minutos(hora_val):
@@ -94,7 +94,7 @@ if archivo:
         df_raw = pd.read_csv(archivo) if archivo.name.endswith('.csv') else pd.read_excel(archivo)
         st.session_state.df_ruta = optimizar_ruta_final(df_raw)
         st.session_state.entregados = {}
-        st.session_state.cam_activa = None # Controlar qué cámara está abierta
+        st.session_state.cam_activa = None
 
     for i, row in st.session_state.df_ruta.iterrows():
         num = i + 1
@@ -105,38 +105,42 @@ if archivo:
         st.markdown('<div class="card-container">', unsafe_allow_html=True)
         
         if hecho:
-            st.success(f"✅ {num}. {nombre_lugar} - ENTREGADO")
+            st.success(f"✅ {num}. {nombre_lugar} - COMPLETADO")
             wa_msg = urllib.parse.quote(f"✅ Confirmación de Entrega:\n📍 Lugar: {nombre_lugar}\n🏠 Dirección: {row.get('direccion')}")
             st.markdown(f'<a href="https://wa.me/{MI_WHATSAPP}?text={wa_msg}" target="_blank" class="wa-button">📲 ENVIAR AVISO WHATSAPP</a>', unsafe_allow_html=True)
         else:
+            # Encabezado de la tarjeta con formato solicitado
             st.markdown(f"### {num}. {nombre_lugar}")
-            st.write(f"📍 {row.get('direccion')}")
+            st.markdown(f"📍 {row.get('direccion')}")
+            st.markdown(f"🕒 **Ventana:** {row.get('hora_inicio')} - {row.get('hora_fin')}")
             
-            c1, c2 = st.columns(2)
-            with c1: st.info(f"🕒 Cierra: {row.get('hora_fin')}")
-            with c2:
+            c_info1, c_info2 = st.columns(2)
+            with c_info1:
+                st.markdown(f"👤 **Contacto:** {row.get('contacto', 'S/N')}")
+            with c_info2:
                 tel = str(row.get('telefono', '')).split('.')[0]
-                if tel and tel.lower() != 'nan':
+                st.markdown(f"📞 **Tel:** {tel}")
+                if tel and tel.lower() != 'nan' and tel.lower() != 's/n':
                     st.markdown(f'<a href="tel:{tel}" class="call-button">📞 Llamar</a>', unsafe_allow_html=True)
 
+            # Navegación
             nav_dest = urllib.parse.quote(f"{nombre_lugar} {row.get('direccion')}, Comarca Lagunera")
             st.link_button(f"🗺️ Navegar GPS", f"https://www.google.com/maps/search/?api=1&query={nav_dest}")
             
             st.divider()
 
-            # LÓGICA DE CÁMARA BAJO DEMANDA
+            # Cámara bajo demanda para ahorrar batería
             if st.session_state.cam_activa != id_parada:
                 if st.button(f"📷 Abrir Cámara para #{num}", key=f"btn_cam_{num}"):
                     st.session_state.cam_activa = id_parada
                     st.rerun()
             else:
-                # La cámara solo existe en el DOM si cam_activa coincide con este ID
                 foto = st.camera_input(f"Capturar evidencia: {nombre_lugar}", key=f"input_cam_{num}")
                 if foto:
                     st.image(foto)
-                    if st.button(f"Confirmar Entrega #{num}", key=f"finish_{num}"):
+                    if st.button(f"Confirmar Entrega #{num} ➡️", key=f"finish_{num}"):
                         st.session_state.entregados[id_parada] = True
-                        st.session_state.cam_activa = None # Cerramos la cámara para liberar recursos
+                        st.session_state.cam_activa = None
                         st.rerun()
                 
                 if st.button("❌ Cerrar Cámara", key=f"cancel_{num}"):
@@ -145,6 +149,6 @@ if archivo:
         
         st.markdown('</div>', unsafe_allow_html=True)
 
-if st.sidebar.button("🗑️ Limpiar y Reiniciar"):
+if st.sidebar.button("🗑️ Reiniciar Sesión"):
     st.session_state.clear()
     st.rerun()
