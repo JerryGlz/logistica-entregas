@@ -18,8 +18,8 @@ st.set_page_config(page_title="Sistema de Entregas", page_icon="🚗", layout="c
 TOKEN_LOCATION_IQ = "pk.687257340f32f012a326a2b48280fccf" 
 
 # --- CONFIGURACIÓN DE PUNTOS CLAVE ---
-MI_LOCAL_DIR = "diCerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuilareccion" # Dirección de partida genérica
-MI_WHATSAPP = "528712690676" # Tu número de WhatsApp
+MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila" # <--- CONFIGURA TU LOCAL
+MI_WHATSAPP = "528712690676" # <--- TU NÚMERO (Formato: 52 + 10 dígitos)
 
 st.markdown("""
     <style>
@@ -27,11 +27,10 @@ st.markdown("""
     .wa-button { width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-top:10px; font-size: 1.1em; }
     .call-button { width:100%; background-color:#007bff; color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; text-align:center; text-decoration:none; display:inline-block; margin-top:5px; margin-bottom:5px; font-size: 0.9em; }
     .card-container { border: 1px solid #ddd; padding: 15px; border-radius: 10px; background-color: #f9f9f9; margin-bottom: 20px; border-left: 8px solid #3498DB; }
-    .ios-instruction { background-color: #E8F4FD; color: #1B4F72; padding: 12px; border-radius: 8px; font-size: 0.9em; margin-bottom: 10px; border: 1px solid #AED6F1; }
+    .cam-btn>button { background-color: #E67E22 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# Encabezado con imagen solicitada
 col_img, col_tit = st.columns([0.2, 0.8])
 with col_img:
     st.image("https://cdn-icons-png.flaticon.com/512/3418/3418139.png", width=70)
@@ -63,7 +62,7 @@ def optimizar_ruta_final(df_in):
     df_in.columns = [c.lower().strip() for c in df_in.columns]
     l_lat, l_lon, _ = buscar_coords(MI_LOCAL_DIR)
     if not l_lat: l_lat, l_lon = 25.58913, -103.40713
-
+    
     resultados = []
     for _, fila in df_in.iterrows():
         lat, lon, ok = buscar_coords(fila.get('direccion', ''), fila.get('referencia', ''))
@@ -76,13 +75,10 @@ def optimizar_ruta_final(df_in):
     ruta_ordenada = []
     punto_actual = (l_lat, l_lon)
     pendientes = df_temp.copy()
-
     while not pendientes.empty:
         deadline_minimo = pendientes['m_fin'].min()
         urgentes = pendientes[pendientes['m_fin'] == deadline_minimo].copy()
-        urgentes['dist'] = urgentes.apply(
-            lambda r: geodesic(punto_actual, (r['lat'], r['lon'])).km if r['geocodificado'] else 999, axis=1
-        )
+        urgentes['dist'] = urgentes.apply(lambda r: geodesic(punto_actual, (r['lat'], r['lon'])).km if r['geocodificado'] else 999, axis=1)
         idx_ganador = urgentes['dist'].idxmin()
         ganador = urgentes.loc[idx_ganador]
         ruta_ordenada.append(ganador)
@@ -98,6 +94,7 @@ if archivo:
         df_raw = pd.read_csv(archivo) if archivo.name.endswith('.csv') else pd.read_excel(archivo)
         st.session_state.df_ruta = optimizar_ruta_final(df_raw)
         st.session_state.entregados = {}
+        st.session_state.cam_activa = None # Controlar qué cámara está abierta
 
     for i, row in st.session_state.df_ruta.iterrows():
         num = i + 1
@@ -115,35 +112,35 @@ if archivo:
             st.markdown(f"### {num}. {nombre_lugar}")
             st.write(f"📍 {row.get('direccion')}")
             
-            # Botones de Acción Rápida
             c1, c2 = st.columns(2)
-            with c1:
-                st.info(f"🕒 Cierra: {row.get('hora_fin')}")
+            with c1: st.info(f"🕒 Cierra: {row.get('hora_fin')}")
             with c2:
                 tel = str(row.get('telefono', '')).split('.')[0]
                 if tel and tel.lower() != 'nan':
-                    st.markdown(f'<a href="tel:{tel}" class="call-button">📞 Llamar Cliente</a>', unsafe_allow_html=True)
+                    st.markdown(f'<a href="tel:{tel}" class="call-button">📞 Llamar</a>', unsafe_allow_html=True)
 
-            # Navegación GPS
             nav_dest = urllib.parse.quote(f"{nombre_lugar} {row.get('direccion')}, Comarca Lagunera")
-            st.link_button(f"🗺️ Navegar a esta ubicación", f"https://www.google.com/maps/search/?api=1&query={nav_dest}")
+            st.link_button(f"🗺️ Navegar GPS", f"https://www.google.com/maps/search/?api=1&query={nav_dest}")
             
             st.divider()
-            
-            # FLUJO DE EVIDENCIA (Sustituye al checkbox para evitar errores en iOS)
-            foto = st.camera_input(f"Tomar evidencia para {nombre_lugar}", key=f"cam_{num}")
-            
-            if foto:
-                st.markdown("""
-                    <div class="ios-instruction">
-                    📸 <b>Foto capturada con éxito.</b><br>Mantén presionada la imagen si deseas guardarla en tu carrete.
-                    </div>
-                """, unsafe_allow_html=True)
-                st.image(foto)
+
+            # LÓGICA DE CÁMARA BAJO DEMANDA
+            if st.session_state.cam_activa != id_parada:
+                if st.button(f"📷 Abrir Cámara para #{num}", key=f"btn_cam_{num}"):
+                    st.session_state.cam_activa = id_parada
+                    st.rerun()
+            else:
+                # La cámara solo existe en el DOM si cam_activa coincide con este ID
+                foto = st.camera_input(f"Capturar evidencia: {nombre_lugar}", key=f"input_cam_{num}")
+                if foto:
+                    st.image(foto)
+                    if st.button(f"Confirmar Entrega #{num}", key=f"finish_{num}"):
+                        st.session_state.entregados[id_parada] = True
+                        st.session_state.cam_activa = None # Cerramos la cámara para liberar recursos
+                        st.rerun()
                 
-                # Botón final de confirmación
-                if st.button(f"Confirmar Entrega #{num} ➡️", key=f"btn_conf_{num}"):
-                    st.session_state.entregados[id_parada] = True
+                if st.button("❌ Cerrar Cámara", key=f"cancel_{num}"):
+                    st.session_state.cam_activa = None
                     st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
