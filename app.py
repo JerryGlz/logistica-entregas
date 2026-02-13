@@ -2,7 +2,7 @@
 # TOKEN_LOCATION_IQ = "pk.687257340f32f012a326a2b48280fccf" 
 # MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila" # <--- CONFIGURA TU LOCAL
 # MI_WHATSAPP = "528712690676" # <--- TU NÚMERO (Formato: 52 + 10 dígitos)
-# MI_IMAGEN = "https://cdn-icons-png.flaticon.com/512/2830/2830305.png" # <--- URL de imagen para encabezado (vehículo gris/blanco)
+# MI_IMAGEN = st.image("https://cdn-icons-png.flaticon.com/512/3418/3418139.png", width=80)
 
 import streamlit as st
 import pandas as pd
@@ -18,7 +18,7 @@ st.set_page_config(page_title="Sistema de Entregas Optimizado", page_icon="🚗"
 TOKEN_LOCATION_IQ = "pk.687257340f32f012a326a2b48280fccf" 
 
 # --- DIRECCIÓN DEL PUNTO DE PARTIDA ---
-MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila"
+# MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila"
 
 # --- TELÉFONO PARA NOTIFICACIONES WHATSAPP ---
 MI_WHATSAPP = "528712690676" 
@@ -32,16 +32,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Encabezado con imagen de auto solicitada
 col1, col2 = st.columns([0.2, 0.8])
 with col1:
     st.image("https://cdn-icons-png.flaticon.com/512/3418/3418139.png", width=80)
 with col2:
     st.title("Sistema de Entregas Optimizado")
-    st.caption("Logística por Prioridad Horaria")
 
 # --- 2. FUNCIONES DE APOYO ---
-
 def parse_a_minutos(hora_val):
     try:
         h_str = str(hora_val).strip()
@@ -62,31 +59,21 @@ def buscar_coords(direccion, referencia=""):
     except: pass
     return None, None, False
 
-# --- 3. MOTOR DE RUTA ---
-
 def optimizar_ruta_final(df_in):
     df_in.columns = [c.lower().strip() for c in df_in.columns]
-    
-    # Coordenadas locales
-    l_lat, l_lon, _ = buscar_coords(MI_LOCAL_DIR)
+    l_lat, l_lon, _ = buscar_coords("Los Pensadores 3820, Residencial los Fresnos, Torreon")
     if not l_lat: l_lat, l_lon = 25.58913, -103.40713
 
     resultados = []
     with st.spinner("📍 Calculando secuencia óptima..."):
         for _, fila in df_in.iterrows():
-            dir_val = fila.get('direccion', '')
-            ref_val = fila.get('referencia', '')
+            lat, lon, ok = buscar_coords(fila.get('direccion', ''), fila.get('referencia', ''))
             m_fin = parse_a_minutos(fila.get('hora_fin', '23:59'))
-            
-            lat, lon, ok = buscar_coords(dir_val, ref_val)
-            
             d = fila.to_dict()
             d.update({'lat': lat, 'lon': lon, 'geocodificado': ok, 'm_fin': m_fin})
             resultados.append(d)
     
     df_temp = pd.DataFrame(resultados)
-
-    # Ordenamiento: 1. Hora de fin, 2. Distancia
     ruta_ordenada = []
     punto_actual = (l_lat, l_lon)
     pendientes = df_temp.copy()
@@ -100,15 +87,12 @@ def optimizar_ruta_final(df_in):
         idx_ganador = urgentes['dist'].idxmin()
         ganador = urgentes.loc[idx_ganador]
         ruta_ordenada.append(ganador)
-        if ganador['geocodificado']:
-            punto_actual = (ganador['lat'], ganador['lon'])
+        if ganador['geocodificado']: punto_actual = (ganador['lat'], ganador['lon'])
         pendientes = pendientes.drop(idx_ganador)
-
     return pd.DataFrame(ruta_ordenada).reset_index(drop=True)
 
-# --- 4. INTERFAZ ---
-
-archivo = st.file_uploader("📂 Cargar Excel (Columnas: referencia, direccion, hora_inicio, hora_fin, contacto, telefono)", type=["xlsx", "csv"])
+# --- 3. INTERFAZ ---
+archivo = st.file_uploader("📂 Cargar Excel", type=["xlsx", "csv"])
 
 if archivo:
     if 'df_ruta' not in st.session_state:
@@ -116,10 +100,7 @@ if archivo:
         st.session_state.df_ruta = optimizar_ruta_final(df_raw)
         st.session_state.entregados = {}
 
-    df_ruta = st.session_state.df_ruta
-
-    st.subheader("📋 Orden de Trabajo")
-    for i, row in df_ruta.iterrows():
+    for i, row in st.session_state.df_ruta.iterrows():
         num = i + 1
         id_chk = f"chk_{num}"
         hecho = st.session_state.entregados.get(id_chk, False)
@@ -138,21 +119,31 @@ if archivo:
                 st.markdown(f"👤 **Contacto:** {row.get('contacto', 'N/A')}")
             with c2:
                 tel = str(row.get('telefono', '')).split('.')[0]
-                st.markdown(f"📞 **Tel:** {tel}")
                 if tel and tel.lower() != 'nan':
                     st.markdown(f'<a href="tel:{tel}" class="call-button">📞 Llamar</a>', unsafe_allow_html=True)
 
-            destino_google = f"{row.get('referencia', '')} {row.get('direccion', '')}, Comarca Lagunera"
-            q = urllib.parse.quote(destino_google)
-            st.link_button(f"🗺️ Navegar a {nombre_lugar}", f"https://www.google.com/maps/search/?api=1&query={q}")
+            q = urllib.parse.quote(f"{nombre_lugar} {row.get('direccion', '')}, Comarca Lagunera")
+            st.link_button(f"🗺️ Navegar a Parada {num}", f"https://www.google.com/maps/search/?api=1&query={q}")
             
             if st.checkbox("Confirmar Entrega", key=id_chk):
-                foto = st.camera_input("Evidencia", key=f"cam_{num}")
+                foto = st.camera_input("Capturar Evidencia", key=f"cam_{num}")
                 if foto:
-                    st.session_state.entregados[id_chk] = True
-                    wa_msg = urllib.parse.quote(f"✅ Entregado en: {nombre_lugar}\n📍 {row.get('direccion')}")
-                    st.markdown(f'<a href="https://wa.me/{MI_WHATSAPP}?text={wa_msg}" target="_blank" class="wa-button">📲 INFORMAR WHATSAPP</a>', unsafe_allow_html=True)
-                    if st.button("Siguiente parada ➡️", key=f"btn_{num}"):
+                    # BOTÓN DE DESCARGA PARA GUARDAR EN CELULAR
+                    st.download_button(
+                        label="💾 GUARDAR FOTO EN CELULAR",
+                        data=foto,
+                        file_name=f"Entrega_{num}_{nombre_lugar}.png",
+                        mime="image/png"
+                    )
+                    
+                    st.warning("⚠️ Haz clic en el botón de arriba para guardar la evidencia en tu celular.")
+                    
+                    if st.button("Confirmar y Enviar Aviso", key=f"confirm_{num}"):
+                        st.session_state.entregados[id_chk] = True
+                        wa_msg = urllib.parse.quote(f"✅ Entregado en: {nombre_lugar}\n📍 {row.get('direccion')}")
+                        # Nota: Solo enviamos texto, la foto ya está guardada en el dispositivo
+                        url_wa = f"https://wa.me/{MI_WHATSAPP}?text={wa_msg}"
+                        st.markdown(f'<a href="{url_wa}" target="_blank" class="wa-button">📲 AVISAR POR WHATSAPP</a>', unsafe_allow_html=True)
                         st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
