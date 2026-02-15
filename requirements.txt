@@ -3,4 +3,5 @@ pandas
 requests
 geopy
 openpyxl
-streamlit-gsheets-connection
+st-gsheets-connection
+
