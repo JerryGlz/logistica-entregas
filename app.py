@@ -10,14 +10,22 @@ import requests
 from geopy.distance import geodesic
 import urllib.parse
 from datetime import datetime
+from stimulants.gsheets import GSheetsConnection # Librería para la conexión
 
 # --- 1. CONFIGURACIÓN Y ESTILOS ---
 st.set_page_config(page_title="Sistema de Entregas Pro", page_icon="🚗", layout="centered")
 
-# Token y Configuración
+# --- CONEXIÓN A GOOGLE SHEETS ---
+# Nota: Debes configurar tus secretos en Streamlit Cloud (o .streamlit/secrets.toml)
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except:
+    st.error("⚠️ Error de conexión con Google Sheets. Verifica tus credenciales.")
+
 TOKEN_LOCATION_IQ = "pk.687257340f32f012a326a2b48280fccf" 
 MI_LOCAL_DIR = "Cerrada San Giovanni 48, Residencial Senderos, 27018 Torreon, Coahuila"
 MI_WHATSAPP = "526181037087"
+URL_SHEET = "https://docs.google.com/spreadsheets/d/1ogKCD-iDakfJIg4be8fBfbOLbKTIirzZmrrDp9mSzhA/edit?usp=sharing"
 
 st.markdown("""
     <style>
@@ -30,7 +38,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. LÓGICA DE NEGOCIO ---
+# --- 2. FUNCIONES DE LÓGICA Y DB ---
+def actualizar_estatus_db(id_p, status):
+    # Esta función guarda el estado en Google Sheets en tiempo real
+    df_db = conn.read(spreadsheet=URL_SHEET)
+    if id_p in df_db['id_parada'].values:
+        df_db.loc[df_db['id_parada'] == id_p, 'estatus'] = status
+    else:
+        new_row = pd.DataFrame([{"id_parada": id_p, "estatus": status}])
+        df_db = pd.concat([df_db, new_row], ignore_index=True)
+    conn.update(spreadsheet=URL_SHEET, data=df_db)
+
 def parse_a_minutos(hora_val):
     try:
         h_str = str(hora_val).strip()[:5]
@@ -78,10 +96,9 @@ def optimizar_ruta(df_in):
         pend = pend.drop(idx)
     return pd.DataFrame(ruta).reset_index(drop=True)
 
-# --- 3. ESTADO DE SESIÓN ---
+# --- 3. GESTIÓN DE ESTADO ---
 if 'df_ruta' not in st.session_state:
     st.session_state.df_ruta = None
-    st.session_state.entregados = {}
     st.session_state.cam_activa = None
 
 # --- 4. INTERFAZ ---
@@ -94,23 +111,28 @@ if archivo:
     if st.session_state.df_ruta is None:
         df_raw = pd.read_csv(archivo) if archivo.name.endswith('.csv') else pd.read_excel(archivo)
         st.session_state.df_ruta = optimizar_ruta(df_raw)
+        
+    # Leer estatus desde la DB (Google Sheets)
+    try:
+        db_estatus = conn.read(spreadsheet=URL_SHEET).set_index('id_parada')['estatus'].to_dict()
+    except:
+        db_estatus = {}
 
     for i, row in st.session_state.df_ruta.iterrows():
         num = i + 1
         id_p = f"p_{num}"
-        hecho = st.session_state.entregados.get(id_p, False)
+        # Priorizar lo que dice la DB para persistencia real
+        hecho = db_estatus.get(id_p, "Pendiente") == "Completado"
         nombre = str(row.get('referencia', f'Parada {num}'))
         
         card_class = "card-container status-done" if hecho else "card-container"
         st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
         
-        # DATOS
         st.markdown(f"### {num}. {nombre}")
         st.markdown(f"📍 {row.get('direccion')}")
         st.markdown(f"🕒 **Ventana:** {row.get('hora_inicio')} - {row.get('hora_fin')}")
         st.markdown(f"👤 **Contacto:** {row.get('contacto', 'S/N')}")
         
-        # FILA 1: Mapa y Llamada
         col_nav, col_call = st.columns(2)
         with col_nav:
             q_nav = urllib.parse.quote(f"{nombre} {row.get('direccion')}")
@@ -124,7 +146,6 @@ if archivo:
 
         st.divider()
 
-        # FILA 2: WhatsApp y Foto
         col_wa, col_foto = st.columns(2)
         with col_wa:
             wa_msg = urllib.parse.quote(f"✅ Entrega Confirmada:\n📍 {nombre}\n🏠 {row.get('direccion')}")
@@ -136,26 +157,27 @@ if archivo:
                 st.session_state.cam_activa = id_p if st.session_state.cam_activa != id_p else None
                 st.rerun()
 
-        # Cámara (Bajo demanda)
         if st.session_state.cam_activa == id_p:
             foto = st.camera_input("Evidencia", key=f"cam_in_{num}")
             if foto:
                 st.image(foto)
-                st.info("👆 Mantén presionada la foto para guardarla.")
+                st.info("👆 Foto capturada.")
 
-        # Estatus Final
         st.write("")
         if not hecho:
             if st.button(f"✔️ MARCAR ENTREGADO", key=f"done_{num}"):
-                st.session_state.entregados[id_p] = True
+                actualizar_estatus_db(id_p, "Completado") # GUARDAR EN DB
                 st.rerun()
         else:
             if st.button(f"🔄 REABRIR PARADA", key=f"undo_{num}"):
-                st.session_state.entregados[id_p] = False
+                actualizar_estatus_db(id_p, "Pendiente") # GUARDAR EN DB
                 st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
 
 if st.sidebar.button("🗑️ REINICIAR TODO"):
+    # Limpiar también la DB si se desea
+    empty_db = pd.DataFrame(columns=["id_parada", "estatus"])
+    conn.update(spreadsheet=URL_SHEET, data=empty_db)
     st.session_state.clear()
     st.rerun()
